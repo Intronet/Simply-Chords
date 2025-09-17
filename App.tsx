@@ -16,7 +16,11 @@ import {
   playChordOnce,
   sampler,
   drumPlayers,
-  drumVolume
+  drumVolume,
+  humanizeProgression,
+  parseNote,
+  KEY_SIGNATURES,
+  transposeChord
 } from './index';
 import { KEY_OPTIONS, ChordSet, SequenceChord } from './types';
 import { Piano } from './components/Piano';
@@ -57,11 +61,11 @@ const normalizeNotesForPiano = (notes: string[]): string[] => notes.map(normaliz
 
 const App: React.FC = () => {
   const [songKey, setSongKey] = useState<string>('C');
-  const [category, setCategory] = useState<string>(Object.keys(staticChordData)[0]);
+  const [category, setCategory] = useState<string>(PRESET_DRUM_PATTERNS[0].name);
   const [chordSetIndex, setChordSetIndex] = useState(0);
   const [octave, setOctave] = useState(0);
   const [inversionLevel, setInversionLevel] = useState(0); // 0: Root, 1: 1st, 2: 2nd
-  const [isVoicingFeatureOn, setIsVoicingFeatureOn] = useState(false);
+  const [voicingMode, setVoicingMode] = useState<'off' | 'manual' | 'auto'>('auto');
   const [isPianoLoaded, setIsPianoLoaded] = useState(false);
   const [activePadChordNotes, setActivePadChordNotes] = useState<string[]>([]);
   const [activePianoNote, setActivePianoNote] = useState<string | null>(null);
@@ -81,6 +85,37 @@ const App: React.FC = () => {
   const [activeSequencerManualNotes, setActiveSequencerManualNotes] = useState<string[]>([]);
   const partRef = useRef<Tone.Part | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const prevSongKeyRef = useRef<string>(songKey);
+
+  // --- Transpose Sequencer on Key Change ---
+  useEffect(() => {
+    // This logic will run only when the song key changes from its previous value.
+    if (prevSongKeyRef.current !== songKey && sequence.length > 0) {
+      const oldKey = prevSongKeyRef.current;
+      const newKey = songKey;
+
+      const oldKeyIndex = parseNote(oldKey);
+      const newKeyIndex = parseNote(newKey);
+
+      // Ensure we have valid key indices to calculate an interval
+      if (!isNaN(oldKeyIndex) && !isNaN(newKeyIndex)) {
+        const interval = newKeyIndex - oldKeyIndex;
+        const useSharps = KEY_SIGNATURES[newKey] !== 'flats';
+        
+        const newSequence = sequence.map(seqChord => ({
+          ...seqChord,
+          chordName: transposeChord(seqChord.chordName, interval, useSharps),
+        }));
+        
+        setSequence(newSequence);
+      }
+    }
+    
+    // After the effect runs (or doesn't), update the ref to the current key
+    // so we can compare against it on the next render.
+    prevSongKeyRef.current = songKey;
+  }, [songKey, sequence]);
+
 
   // --- Metronome State ---
   const [isMetronomeOn, setIsMetronomeOn] = useState(false);
@@ -388,16 +423,28 @@ const App: React.FC = () => {
 
     // --- Drum Machine Logic ---
 
+  // Sync drum pattern with chord category
+  useEffect(() => {
+    const matchingPresetIndex = PRESET_DRUM_PATTERNS.findIndex(p => p.name === category);
+
+    if (matchingPresetIndex !== -1) {
+      setSelectedDrumPresetIndex(matchingPresetIndex);
+      setDrumPattern(PRESET_DRUM_PATTERNS[matchingPresetIndex].pattern);
+    } else {
+      // Fallback for categories like "AI Generated"
+      const fallbackIndex = PRESET_DRUM_PATTERNS.findIndex(p => p.name === "Common Progressions") || 0;
+      if (fallbackIndex !== -1) {
+        setSelectedDrumPresetIndex(fallbackIndex);
+        setDrumPattern(PRESET_DRUM_PATTERNS[fallbackIndex].pattern);
+      }
+    }
+  }, [category]);
+
+
   // Update drum volume
   useEffect(() => {
       drumVolume.volume.value = drumVol;
   }, [drumVol]);
-
-  // Handle preset changes
-  const handleDrumPresetChange = (index: number) => {
-      setSelectedDrumPresetIndex(index);
-      setDrumPattern(PRESET_DRUM_PATTERNS[index].pattern);
-  };
 
   // Handle individual step changes
   const handleDrumPatternChange = (sound: DrumSound, step: number, value: boolean) => {
@@ -412,30 +459,39 @@ const App: React.FC = () => {
   
   // Sync Tone.Sequence with drum pattern state
   useEffect(() => {
-      if (drumSequenceRef.current) {
-          drumSequenceRef.current.dispose();
-      }
+    if (drumSequenceRef.current) {
+        drumSequenceRef.current.dispose();
+        drumSequenceRef.current = null;
+    }
 
-      const sequence = new Tone.Sequence((time, step) => {
-          DRUM_SOUNDS.forEach(sound => {
-              if (drumPattern[sound][step]) {
-                  drumPlayers.player(sound).start(time);
-              }
-          });
+    // Do not create the sequence until the audio samples are loaded.
+    if (!isPianoLoaded) {
+        return;
+    }
 
-          Tone.Draw.schedule(() => {
-              setActiveDrumStep(step);
-          }, time);
+    const sequence = new Tone.Sequence((time, step) => {
+        DRUM_SOUNDS.forEach(sound => {
+            // Check if player is loaded before starting, as a fallback safety.
+            if (drumPattern[sound][step] && drumPlayers.player(sound).loaded) {
+                drumPlayers.player(sound).start(time);
+            }
+        });
 
-      }, Array.from({ length: 16 }, (_, i) => i), "16n").start(0);
+        Tone.Draw.schedule(() => {
+            setActiveDrumStep(step);
+        }, time);
 
-      sequence.loop = true;
-      drumSequenceRef.current = sequence;
+    }, Array.from({ length: 16 }, (_, i) => i), "16n").start(0);
 
-      return () => {
-          sequence.dispose();
-      }
-  }, [drumPattern]);
+    sequence.loop = true;
+    drumSequenceRef.current = sequence;
+
+    return () => {
+        sequence.dispose();
+        drumSequenceRef.current = null;
+    }
+  }, [drumPattern, isPianoLoaded]);
+
 
   // Mute/unmute drum sequence
   useEffect(() => {
@@ -501,7 +557,7 @@ const App: React.FC = () => {
   }, [category, chordSetIndex, chordData]);
 
   const processChordsForDisplay = useCallback((chords: string[]) => {
-      if (!isVoicingFeatureOn) {
+      if (voicingMode !== 'manual') {
         return chords;
       }
       const getInvSuffix = (level: number): string => {
@@ -524,13 +580,18 @@ const App: React.FC = () => {
         }
         return baseChordName;
       });
-  }, [inversionLevel, isVoicingFeatureOn]);
+  }, [inversionLevel, voicingMode]);
 
   const transposedChords = useMemo(() => {
     if (!selectedChordSet || !selectedChordSet.chords) return [];
     const transposed = transposeProgression(selectedChordSet.chords, songKey);
+
+    if (voicingMode === 'auto') {
+      return humanizeProgression(transposed);
+    }
+    
     return processChordsForDisplay(transposed);
-  }, [selectedChordSet, songKey, processChordsForDisplay]);
+  }, [selectedChordSet, songKey, voicingMode, processChordsForDisplay]);
 
   const displayedChordSets = useMemo(() => {
     if (!chordData[category]) return [];
@@ -652,10 +713,8 @@ const App: React.FC = () => {
           onVolumeChange={setDrumVol}
           isEnabled={isDrumsEnabled}
           onToggleEnabled={() => setIsDrumsEnabled(prev => !prev)}
-          presets={PRESET_DRUM_PATTERNS}
-          selectedPresetIndex={selectedDrumPresetIndex}
-          onPresetChange={handleDrumPresetChange}
           activeStep={activeDrumStep}
+          currentPatternName={PRESET_DRUM_PATTERNS[selectedDrumPresetIndex]?.name || category}
         />
         <div className="flex-grow flex flex-col min-h-0">
           <div className="bg-gray-800/50 rounded-t-lg border border-b-0 border-gray-700 overflow-hidden">
@@ -712,8 +771,8 @@ const App: React.FC = () => {
         setOctave={setOctave}
         inversionLevel={inversionLevel}
         setInversionLevel={setInversionLevel}
-        isVoicingFeatureOn={isVoicingFeatureOn}
-        setIsVoicingFeatureOn={setIsVoicingFeatureOn}
+        voicingMode={voicingMode}
+        setVoicingMode={setVoicingMode}
         onGenerate={handleGenerate}
         isGenerating={isGenerating}
       />

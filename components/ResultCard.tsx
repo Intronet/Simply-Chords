@@ -11,16 +11,16 @@ interface PadGridProps {
   onPadDragStart: (e: React.DragEvent, chordName: string) => void;
   isPianoLoaded: boolean;
   inversionLevel: number;
-  isVoicingFeatureOn: boolean;
+  voicingMode: 'off' | 'manual' | 'auto';
 }
 
-export const PadGrid: React.FC<PadGridProps> = ({ chords, onPadMouseDown, onPadMouseUp, onPadMouseEnter, onPadMouseLeave, onPadDragStart, isPianoLoaded, inversionLevel, isVoicingFeatureOn }) => {
+export const PadGrid: React.FC<PadGridProps> = ({ chords, onPadMouseDown, onPadMouseUp, onPadMouseEnter, onPadMouseLeave, onPadDragStart, isPianoLoaded, inversionLevel, voicingMode }) => {
   return (
     <div className="relative animate-fade-in p-1">
       <div className="grid grid-cols-4 gap-2">
         {chords.map((chord, index) => {
           // Temporarily disabled per user request for testing.
-          const isDisabledFor3rdInv = false; // isVoicingFeatureOn && inversionLevel === 3 && !hasSeventh(chord);
+          const isDisabledFor3rdInv = false; // voicingMode === 'manual' && inversionLevel === 3 && !hasSeventh(chord);
           return (
             <div key={`${chord}-${index}`} className="bg-indigo-500/80 rounded-lg p-[2px] shadow-lg">
               <Pad 

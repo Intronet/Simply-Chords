@@ -23,7 +23,7 @@ const NOTE_TO_INDEX: { [note: string]: number } = {
   'B': 11, 'Cb': 11, 'A##': 11,
 };
 
-const KEY_SIGNATURES: { [key: string]: 'sharps' | 'flats' } = {
+export const KEY_SIGNATURES: { [key: string]: 'sharps' | 'flats' } = {
   'C': 'sharps', 'G': 'sharps', 'D': 'sharps', 'A': 'sharps', 'E': 'sharps', 'B': 'sharps', 'F#': 'sharps', 'C#': 'sharps',
   'F': 'flats', 'Bb': 'flats', 'Eb': 'flats', 'Ab': 'flats', 'Db': 'flats', 'Gb': 'flats', 'Cb': 'flats',
   'A#': 'flats', 'D#': 'flats', 'G#': 'flats',
@@ -68,7 +68,7 @@ export const getDominant = (root: string): string => getNoteFromCircle(root, 1);
 export const getSubdominant = (root: string): string => getNoteFromCircle(root, -1);
 
 
-const parseNote = (note: string): number => {
+export const parseNote = (note: string): number => {
     if (!note) return NaN;
     return NOTE_TO_INDEX[note];
 };
@@ -159,7 +159,7 @@ export const updateChord = (
 };
 
 
-const transposeChord = (chord: string, interval: number, useSharps: boolean): string => {
+export const transposeChord = (chord: string, interval: number, useSharps: boolean): string => {
   const parts = parseChord(chord);
   if (!parts) return chord;
 
@@ -232,10 +232,12 @@ export const sampler = new Tone.Sampler({
 export const drumVolume = new Tone.Volume(-6).toDestination();
 export const drumPlayers = new Tone.Players({
   urls: {
-    kick: 'https://tonejs.github.io/audio/drum-samples/CR78/kick.mp3',
-    snare: 'https://tonejs.github.io/audio/drum-samples/CR78/snare.mp3',
-    hat: 'https://tonejs.github.io/audio/drum-samples/CR78/hihat.mp3',
-    clap: 'https://tonejs.github.io/audio/drum-samples/DMX/clap.mp3'
+    kick: 'https://tonejs.github.io/audio/drum-samples/acoustic-kit/kick.mp3',
+    snare: 'https://tonejs.github.io/audio/drum-samples/acoustic-kit/snare.mp3',
+    hat: 'https://tonejs.github.io/audio/drum-samples/acoustic-kit/hihat.mp3',
+    rim: '/samples/rim.wav', // Using a local rimshot sample
+    clap: '/samples/clap.wav',
+    timbale: '/samples/timbale.wav',
   },
 }).connect(drumVolume);
 

@@ -32,7 +32,7 @@ export interface SequenceChord {
   duration: number; // in 16th note steps
 }
 
-export type DrumSound = 'kick' | 'snare' | 'hat' | 'clap';
+export type DrumSound = 'kick' | 'snare' | 'hat' | 'clap' | 'rim' | 'timbale';
 
 export interface DrumPattern {
   name: string;

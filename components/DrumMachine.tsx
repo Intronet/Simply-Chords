@@ -9,10 +9,8 @@ interface DrumMachineProps {
   onVolumeChange: (volume: number) => void;
   isEnabled: boolean;
   onToggleEnabled: () => void;
-  presets: DrumPattern[];
-  selectedPresetIndex: number;
-  onPresetChange: (index: number) => void;
   activeStep: number | null;
+  currentPatternName: string;
 }
 
 const soundLabels: Record<DrumSound, string> = {
@@ -20,6 +18,8 @@ const soundLabels: Record<DrumSound, string> = {
   snare: 'Snare',
   hat: 'Hi-Hat',
   clap: 'Clap',
+  rim: 'Rim',
+  timbale: 'Timbale',
 };
 
 export const DrumMachine: React.FC<DrumMachineProps> = ({
@@ -29,29 +29,19 @@ export const DrumMachine: React.FC<DrumMachineProps> = ({
   onVolumeChange,
   isEnabled,
   onToggleEnabled,
-  presets,
-  selectedPresetIndex,
-  onPresetChange,
   activeStep,
+  currentPatternName,
 }) => {
-  const selectStyles = "bg-gray-800 border-2 border-gray-700 text-gray-200 text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent block p-2 transition-all duration-200 w-full";
   const stepButtonBase = "w-full h-full rounded transition-colors duration-100 border";
 
   return (
     <div className="flex-shrink-0 bg-gray-800/50 rounded-lg border border-gray-700 p-3 mb-2">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="text-xl font-bold text-indigo-300">Drum Machine</h3>
+        <div className="flex items-baseline gap-3">
+          <h3 className="text-xl font-bold text-indigo-300">Drum Machine</h3>
+          <span className="text-md font-semibold text-gray-400">{currentPatternName}</span>
+        </div>
         <div className="flex items-center gap-4">
-          <select
-            id="drum-preset-select"
-            value={selectedPresetIndex}
-            onChange={(e) => onPresetChange(parseInt(e.target.value, 10))}
-            className={selectStyles}
-            aria-label="Select drum pattern"
-          >
-            {presets.map((p, index) => <option key={p.name} value={index}>{p.name}</option>)}
-          </select>
-
           <div className="flex items-center gap-2">
             <label htmlFor="drum-volume" className="text-sm font-medium text-gray-400">Vol</label>
             <input

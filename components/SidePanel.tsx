@@ -25,8 +25,8 @@ interface SidePanelProps {
   setOctave: (octave: number) => void;
   inversionLevel: number;
   setInversionLevel: (level: number) => void;
-  isVoicingFeatureOn: boolean;
-  setIsVoicingFeatureOn: (isOn: boolean) => void;
+  voicingMode: 'off' | 'manual' | 'auto';
+  setVoicingMode: (mode: 'off' | 'manual' | 'auto') => void;
   onGenerate: (prompt: string) => void;
   isGenerating: boolean;
 }
@@ -69,28 +69,34 @@ const InversionControl: React.FC<{
   );
 };
 
-const VoicingToggle: React.FC<{
-  isOn: boolean;
-  setIsOn: (isOn: boolean) => void;
-}> = ({ isOn, setIsOn }) => {
+const VoicingModeControl: React.FC<{
+  mode: 'off' | 'manual' | 'auto';
+  setMode: (mode: 'off' | 'manual' | 'auto') => void;
+}> = ({ mode, setMode }) => {
+  const options = [
+    { label: 'Off', value: 'off' },
+    { label: 'Manual', value: 'manual' },
+    { label: 'Auto', value: 'auto' },
+  ] as const;
+
   return (
-    <button
-      type="button"
-      onClick={() => setIsOn(!isOn)}
-      className={`${
-        isOn ? 'bg-indigo-600' : 'bg-gray-600'
-      } relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800`}
-      role="switch"
-      aria-checked={isOn}
-      aria-label="Toggle voicing feature"
-    >
-      <span
-        aria-hidden="true"
-        className={`${
-          isOn ? 'translate-x-5' : 'translate-x-0'
-        } pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
-      />
-    </button>
+    <div className="flex items-center bg-gray-800 border-2 border-gray-700 rounded-lg p-1 w-full">
+      {options.map(option => (
+        <button
+          key={option.value}
+          onClick={() => setMode(option.value)}
+          className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800
+            ${mode === option.value
+              ? 'bg-indigo-600 text-white shadow'
+              : 'text-gray-300 hover:bg-gray-700'
+            }
+          `}
+          aria-pressed={mode === option.value}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 };
 
@@ -115,8 +121,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   setOctave,
   inversionLevel,
   setInversionLevel,
-  isVoicingFeatureOn,
-  setIsVoicingFeatureOn,
+  voicingMode,
+  setVoicingMode,
   onGenerate,
   isGenerating,
 }) => {
@@ -151,16 +157,14 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-indigo-300">Voicing Controls</h2>
-              <VoicingToggle isOn={isVoicingFeatureOn} setIsOn={setIsVoicingFeatureOn} />
-            </div>
+            <h2 className="text-lg font-semibold text-indigo-300 mb-2">Voicing</h2>
+            <VoicingModeControl mode={voicingMode} setMode={setVoicingMode} />
             <div className="grid grid-cols-2 gap-4 mt-2">
               <OctaveSlider octave={octave} setOctave={setOctave} />
               <InversionControl 
                 inversionLevel={inversionLevel} 
                 setInversionLevel={setInversionLevel}
-                disabled={!isVoicingFeatureOn}
+                disabled={voicingMode !== 'manual'}
               />
             </div>
           </div>
@@ -177,7 +181,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onPadMouseLeave={onPadMouseLeave}
             onPadDragStart={handlePadDragStart}
             inversionLevel={inversionLevel}
-            isVoicingFeatureOn={isVoicingFeatureOn}
+            voicingMode={voicingMode}
           />
         </div>
       </div>
