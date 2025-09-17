@@ -66,14 +66,14 @@ export const Piano: React.FC<PianoProps> = ({ highlightedNotes, pressedNotes, on
   };
   
   return (
-    <div className="w-full py-4">
+    <div className="w-full py-2">
        <div 
         className="w-full overflow-x-auto overflow-y-hidden rounded-lg shadow-lg border border-gray-800"
         style={{ scrollbarWidth: 'thin', scrollbarColor: '#4f46e5 #374151' }}
         onWheel={handleWheelScroll}
       >
         <div 
-          className="relative h-52 flex" 
+          className="relative h-44 flex" 
           style={{ width: `${whiteKeys.length * 2.5}rem`, minWidth: '100%' }}
           onMouseLeave={onPianoMouseLeave}
         >
@@ -85,7 +85,7 @@ export const Piano: React.FC<PianoProps> = ({ highlightedNotes, pressedNotes, on
             return (
               <button
                 key={noteName}
-                onMouseDown={() => onKeyMouseDown(noteName)}
+                onMouseDown={(e) => { if (e.button === 0) onKeyMouseDown(noteName); }}
                 onMouseEnter={() => onKeyMouseEnter(noteName)}
                 onMouseLeave={onKeyMouseLeave}
                 className={`relative flex-1 border-r border-gray-800 rounded-b-lg text-gray-800 flex items-end justify-center pb-2 font-semibold select-none transition-all duration-75
@@ -116,15 +116,17 @@ export const Piano: React.FC<PianoProps> = ({ highlightedNotes, pressedNotes, on
               <button
                 key={noteName}
                 onMouseDown={(e) => {
-                  e.stopPropagation(); // Prevent white key underneath from firing
-                  onKeyMouseDown(noteName);
+                  if (e.button === 0) {
+                    e.stopPropagation(); // Prevent white key underneath from firing
+                    onKeyMouseDown(noteName);
+                  }
                 }}
                 onMouseEnter={() => onKeyMouseEnter(noteName)}
                 onMouseLeave={onKeyMouseLeave}
                 style={{ left: `${left}%`, width: `${blackKeyWidth}%` }}
-                className={`absolute top-0 h-28 rounded-b-md border-2 border-gray-900 z-10 select-none transition-all duration-75
+                className={`absolute top-0 h-24 rounded-b-md border-2 border-gray-900 z-10 select-none transition-all duration-75
                   ${isHighlighted ? 'bg-sky-400 border-sky-600' : 'bg-gray-800'}
-                  ${isPressed ? 'h-[6.9rem] bg-gray-900' : ''}
+                  ${isPressed ? 'h-[5.9rem] bg-gray-900' : ''}
                 `}
                 aria-label={`Play note ${noteName}`}
               />

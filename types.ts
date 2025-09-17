@@ -31,3 +31,10 @@ export interface SequenceChord {
   start: number; // in 16th note steps (0-63 for 4 bars)
   duration: number; // in 16th note steps
 }
+
+export type DrumSound = 'kick' | 'snare' | 'hat' | 'clap';
+
+export interface DrumPattern {
+  name: string;
+  pattern: Record<DrumSound, boolean[]>;
+}

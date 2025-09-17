@@ -176,6 +176,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onPadMouseEnter={onPadMouseEnter}
             onPadMouseLeave={onPadMouseLeave}
             onPadDragStart={handlePadDragStart}
+            inversionLevel={inversionLevel}
+            isVoicingFeatureOn={isVoicingFeatureOn}
           />
         </div>
       </div>

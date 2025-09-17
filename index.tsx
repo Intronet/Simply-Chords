@@ -199,6 +199,17 @@ export const transposeProgression = (progression: string[], newKey: string): str
   return progression.map(chord => transposeChord(chord, interval, useSharps));
 };
 
+export const hasSeventh = (chordName: string): boolean => {
+  const parsed = parseChord(chordName);
+  if (!parsed) return false;
+
+  const quality = parsed.quality.toLowerCase();
+  
+  // A chord has a 3rd inversion if it contains a 7th.
+  // 9ths, 11ths, and 13ths chords imply the presence of a 7th.
+  return quality.includes('7') || quality.includes('9') || quality.includes('11') || quality.includes('13');
+};
+
 
 // --- Audio Synthesis Engine ---
 
@@ -217,9 +228,21 @@ export const sampler = new Tone.Sampler({
   baseUrl: "https://tonejs.github.io/audio/salamander/"
 }).toDestination();
 
+// --- Drum Machine Engine ---
+export const drumVolume = new Tone.Volume(-6).toDestination();
+export const drumPlayers = new Tone.Players({
+  urls: {
+    kick: 'https://tonejs.github.io/audio/drum-samples/CR78/kick.mp3',
+    snare: 'https://tonejs.github.io/audio/drum-samples/CR78/snare.mp3',
+    hat: 'https://tonejs.github.io/audio/drum-samples/CR78/hihat.mp3',
+    clap: 'https://tonejs.github.io/audio/drum-samples/DMX/clap.mp3'
+  },
+}).connect(drumVolume);
+
+
 export const initAudio = async () => {
   await Tone.loaded();
-  return sampler;
+  return { sampler, drumPlayers };
 };
 
 const getChordNotes = (chord: string, octaveOffset: number): { note: string, octave: number }[] => {

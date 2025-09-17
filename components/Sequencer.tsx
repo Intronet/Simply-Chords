@@ -112,13 +112,23 @@ const ChordBlock: React.FC<ChordBlockProps> = ({ chord, stepWidth, trackHeight, 
           }
 
         } else if (dragStateRef.current.isMoving) {
-          const dSteps = Math.round(dx / stepWidth);
-          const newStart = Math.max(
-            0, // min start is 0
-            Math.min(TOTAL_STEPS - Math.ceil(chord.duration), dragStateRef.current.originalStart + dSteps)
+          let newStart;
+          if (moveEvent.shiftKey) { // Precision mode for moving
+            const startDelta = dx / stepWidth;
+            newStart = dragStateRef.current.originalStart + startDelta;
+          } else { // Snap to grid mode for moving
+            const dSteps = Math.round(dx / stepWidth);
+            newStart = dragStateRef.current.originalStart + dSteps;
+          }
+
+          // Clamp start position to bounds
+          newStart = Math.max(
+            0,
+            Math.min(TOTAL_STEPS - chord.duration, newStart)
           );
-           if (newStart !== chord.start) {
-              onUpdate(chord.id, { start: newStart });
+
+          if (newStart !== chord.start) {
+            onUpdate(chord.id, { start: newStart });
           }
         }
       };
@@ -131,7 +141,7 @@ const ChordBlock: React.FC<ChordBlockProps> = ({ chord, stepWidth, trackHeight, 
 
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
-    } else {
+    } else if (e.button === 0) {
       onChordMouseDown(chord.chordName);
     }
   }, [chord.id, chord.start, chord.duration, stepWidth, onUpdate, onChordMouseDown, chord.chordName]);
@@ -158,7 +168,7 @@ const ChordBlock: React.FC<ChordBlockProps> = ({ chord, stepWidth, trackHeight, 
         onRemove(chord.id);
       }}
       onDoubleClick={() => onDoubleClick(chord)}
-      title={`${chord.chordName} (Hold CTRL to move. Hold CTRL+SHIFT to resize precisely. Right-click to delete, Double-click to edit)`}
+      title={`${chord.chordName}\nHold CTRL to move or resize.\nHold CTRL+SHIFT for precise move/resize.\nRight-click to delete.\nDouble-click to edit.`}
     >
       <span className="truncate px-2 pointer-events-none">{chord.chordName}</span>
       <div className={`resize-handle absolute right-0 top-0 bottom-0 w-2 ${isCtrlPressed ? 'cursor-ew-resize' : ''}`} />
@@ -250,13 +260,22 @@ export const Sequencer: React.FC<SequencerProps> = ({
       >
         {/* Grid background */}
         <div className="absolute inset-0" style={{ left: `${TRACK_PADDING}px`, right: `${TRACK_PADDING}px` }}>
-           {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-              <div
-                key={`sub-${i}`}
-                className={`absolute top-0 bottom-0 border-l ${ i % 4 === 0 ? 'border-gray-700' : 'border-dashed border-gray-800' }`}
-                style={{ left: `${i * stepWidth}px` }}
-              />
-            ))}
+           {Array.from({ length: TOTAL_STEPS }).map((_, i) => {
+              const isBeat = i % 4 === 0;
+              const isThirdBeatOfBar = i % 16 === 8;
+              let borderColorClass = 'border-gray-700'; // 16th note default
+              if (isBeat) {
+                // 3rd beat gets a lighter color for emphasis (half-note mark)
+                borderColorClass = isThirdBeatOfBar ? 'border-gray-400' : 'border-gray-500';
+              }
+              return (
+                <div
+                  key={`sub-${i}`}
+                  className={`absolute top-0 bottom-0 border-l ${borderColorClass}`}
+                  style={{ left: `${i * stepWidth}px` }}
+                />
+              );
+            })}
            {Array.from({ length: BAR_COUNT + 1 }).map((_, i) => (
               <div
                 key={`barline-${i}`}

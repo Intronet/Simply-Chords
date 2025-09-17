@@ -15,7 +15,7 @@ export const Header: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex flex-col items-center pt-12 pb-8">
+    <div className="flex flex-col items-center pt-6 pb-2">
       <h1 className="text-5xl font-bold text-center bg-gradient-to-r from-indigo-400 to-purple-500 text-transparent bg-clip-text">
         {projectName}
       </h1>

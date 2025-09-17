@@ -14,7 +14,9 @@ import {
   INVERSION_REGEX,
   updateChord,
   playChordOnce,
-  sampler
+  sampler,
+  drumPlayers,
+  drumVolume
 } from './index';
 import { KEY_OPTIONS, ChordSet, SequenceChord } from './types';
 import { Piano } from './components/Piano';
@@ -24,6 +26,10 @@ import { Sequencer } from './components/Sequencer';
 import * as Tone from 'tone';
 import { TransportControls } from './components/TransportControls';
 import { ChordEditor } from './components/ChordEditor';
+import { DrumMachine } from './components/DrumMachine';
+import { PRESET_DRUM_PATTERNS, DRUM_SOUNDS } from './components/drums/drumPatterns';
+import { DrumSound } from './types';
+
 
 // Simple unique ID generator
 const generateId = () => `_${Math.random().toString(36).substr(2, 9)}`;
@@ -83,6 +89,25 @@ const App: React.FC = () => {
   // --- Chord Editor State ---
   const [editingChord, setEditingChord] = useState<SequenceChord | null>(null);
   const [activeEditorPreviewNotes, setActiveEditorPreviewNotes] = useState<string[]>([]);
+
+  // --- Drum Machine State ---
+  const [isDrumsEnabled, setIsDrumsEnabled] = useState(true);
+  const [drumPattern, setDrumPattern] = useState(PRESET_DRUM_PATTERNS[0].pattern);
+  const [drumVol, setDrumVol] = useState(-6);
+  const [selectedDrumPresetIndex, setSelectedDrumPresetIndex] = useState(0);
+  const [activeDrumStep, setActiveDrumStep] = useState<number | null>(null);
+  const drumSequenceRef = useRef<Tone.Sequence | null>(null);
+
+  // Disable context menu globally
+  useEffect(() => {
+    const handleContextMenu = (e: Event) => {
+      e.preventDefault();
+    };
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
 
   // Configure Tone.Transport to loop
   useEffect(() => {
@@ -288,6 +313,7 @@ const App: React.FC = () => {
     setPlayheadPosition(0);
     setPlayingChordId(null);
     setSequencerActiveNotes([]);
+    setActiveDrumStep(null);
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
@@ -359,6 +385,64 @@ const App: React.FC = () => {
       setActiveEditorPreviewNotes([]);
     }
   }, [activeEditorPreviewNotes]);
+
+    // --- Drum Machine Logic ---
+
+  // Update drum volume
+  useEffect(() => {
+      drumVolume.volume.value = drumVol;
+  }, [drumVol]);
+
+  // Handle preset changes
+  const handleDrumPresetChange = (index: number) => {
+      setSelectedDrumPresetIndex(index);
+      setDrumPattern(PRESET_DRUM_PATTERNS[index].pattern);
+  };
+
+  // Handle individual step changes
+  const handleDrumPatternChange = (sound: DrumSound, step: number, value: boolean) => {
+      setDrumPattern(prev => {
+          const newPattern = { ...prev };
+          const newSoundRow = [...newPattern[sound]];
+          newSoundRow[step] = value;
+          newPattern[sound] = newSoundRow;
+          return newPattern;
+      });
+  };
+  
+  // Sync Tone.Sequence with drum pattern state
+  useEffect(() => {
+      if (drumSequenceRef.current) {
+          drumSequenceRef.current.dispose();
+      }
+
+      const sequence = new Tone.Sequence((time, step) => {
+          DRUM_SOUNDS.forEach(sound => {
+              if (drumPattern[sound][step]) {
+                  drumPlayers.player(sound).start(time);
+              }
+          });
+
+          Tone.Draw.schedule(() => {
+              setActiveDrumStep(step);
+          }, time);
+
+      }, Array.from({ length: 16 }, (_, i) => i), "16n").start(0);
+
+      sequence.loop = true;
+      drumSequenceRef.current = sequence;
+
+      return () => {
+          sequence.dispose();
+      }
+  }, [drumPattern]);
+
+  // Mute/unmute drum sequence
+  useEffect(() => {
+      if (drumSequenceRef.current) {
+          drumSequenceRef.current.mute = !isDrumsEnabled;
+      }
+  }, [isDrumsEnabled]);
 
 
   const chordData = useMemo(() => {
@@ -550,16 +634,30 @@ const App: React.FC = () => {
     <div className="h-screen bg-gray-900 text-gray-200 flex selection:bg-indigo-500 selection:text-white overflow-hidden">
       <main className="flex-1 flex flex-col w-full px-8 overflow-hidden">
         <Header />
-        <HoverDisplay name={hoveredItemName} />
-        <Piano 
-          highlightedNotes={highlightedNotesForPiano}
-          pressedNotes={pressedPianoNotes}
-          onKeyMouseDown={handlePianoMouseDown}
-          onKeyMouseEnter={handlePianoKeyMouseEnter}
-          onKeyMouseLeave={handlePianoKeyMouseLeave}
-          onPianoMouseLeave={handlePianoMouseLeave}
+        <div className="mt-8">
+          <HoverDisplay name={hoveredItemName} />
+          <Piano 
+            highlightedNotes={highlightedNotesForPiano}
+            pressedNotes={pressedPianoNotes}
+            onKeyMouseDown={handlePianoMouseDown}
+            onKeyMouseEnter={handlePianoKeyMouseEnter}
+            onKeyMouseLeave={handlePianoKeyMouseLeave}
+            onPianoMouseLeave={handlePianoMouseLeave}
+          />
+        </div>
+        <DrumMachine
+          pattern={drumPattern}
+          onPatternChange={handleDrumPatternChange}
+          volume={drumVol}
+          onVolumeChange={setDrumVol}
+          isEnabled={isDrumsEnabled}
+          onToggleEnabled={() => setIsDrumsEnabled(prev => !prev)}
+          presets={PRESET_DRUM_PATTERNS}
+          selectedPresetIndex={selectedDrumPresetIndex}
+          onPresetChange={handleDrumPresetChange}
+          activeStep={activeDrumStep}
         />
-        <div className="flex-grow flex flex-col pt-4 min-h-0">
+        <div className="flex-grow flex flex-col min-h-0">
           <div className="bg-gray-800/50 rounded-t-lg border border-b-0 border-gray-700 overflow-hidden">
             <Sequencer 
               sequence={sequence}
@@ -640,6 +738,9 @@ const App: React.FC = () => {
           }
           .animate-fade-in-up {
             animation: fade-in-up 0.3s ease-out forwards;
+          }
+          .animate-pulse-fast {
+            animation: pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
           }
        `}</style>
     </div>
