@@ -1,0 +1,5 @@
+{
+  "name": "Simply Chords",
+  "description": "An interactive chord set player. Select a category and a chord set, then set the key to dynamically transpose the chords. Displayed on an MPC-style pad interface to inspire your music creation.",
+  "requestFramePermissions": []
+}
