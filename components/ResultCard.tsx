@@ -12,9 +12,10 @@ interface PadGridProps {
   isPianoLoaded: boolean;
   inversionLevel: number;
   voicingMode: 'off' | 'manual' | 'auto';
+  keyLabels: string[];
 }
 
-export const PadGrid: React.FC<PadGridProps> = ({ chords, onPadMouseDown, onPadMouseUp, onPadMouseEnter, onPadMouseLeave, onPadDragStart, isPianoLoaded, inversionLevel, voicingMode }) => {
+export const PadGrid: React.FC<PadGridProps> = ({ chords, onPadMouseDown, onPadMouseUp, onPadMouseEnter, onPadMouseLeave, onPadDragStart, isPianoLoaded, inversionLevel, voicingMode, keyLabels }) => {
   return (
     <div className="relative animate-fade-in p-1">
       <div className="grid grid-cols-4 gap-2">
@@ -32,6 +33,7 @@ export const PadGrid: React.FC<PadGridProps> = ({ chords, onPadMouseDown, onPadM
                 onDragStart={(e) => onPadDragStart(e, chord)}
                 isLoaded={isPianoLoaded}
                 isDisabled={isDisabledFor3rdInv}
+                keyLabel={keyLabels[index]}
               />
             </div>
           );

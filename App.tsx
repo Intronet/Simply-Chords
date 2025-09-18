@@ -58,6 +58,20 @@ const normalizeNoteForPiano = (note: string): string => {
 };
 const normalizeNotesForPiano = (notes: string[]): string[] => notes.map(normalizeNoteForPiano);
 
+const KEY_TO_PAD_INDEX: { [key: string]: number } = {
+  '1': 0, '2': 1, '3': 2, '4': 3,
+  'q': 4, 'w': 5, 'e': 6, 'r': 7,
+  'a': 8, 's': 9, 'd': 10, 'f': 11,
+  'z': 12, 'x': 13, 'c': 14, 'v': 15,
+};
+
+const KEY_LABELS = [
+  '1', '2', '3', '4',
+  'Q', 'W', 'E', 'R',
+  'A', 'S', 'D', 'F',
+  'Z', 'X', 'C', 'V',
+];
+
 
 const App: React.FC = () => {
   const [songKey, setSongKey] = useState<string>('C');
@@ -74,6 +88,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hoveredItemName, setHoveredItemName] = useState<string | null>(null);
   const [hoveredNotes, setHoveredNotes] = useState<string[]>([]);
+  const [lastPlayedName, setLastPlayedName] = useState<string | null>(null);
   
   // --- Sequencer State ---
   const [sequence, setSequence] = useState<SequenceChord[]>([]);
@@ -83,9 +98,15 @@ const App: React.FC = () => {
   const [playingChordId, setPlayingChordId] = useState<string | null>(null);
   const [sequencerActiveNotes, setSequencerActiveNotes] = useState<string[]>([]);
   const [activeSequencerManualNotes, setActiveSequencerManualNotes] = useState<string[]>([]);
+  const [isSequencerVoicingOn, setIsSequencerVoicingOn] = useState(true);
   const partRef = useRef<Tone.Part | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const prevSongKeyRef = useRef<string>(songKey);
+
+  // --- Keyboard Pad Control State ---
+  const [activeKeyboardNotes, setActiveKeyboardNotes] = useState<Map<string, string[]>>(new Map());
+  const pressedKeysRef = useRef<Set<string>>(new Set());
+
 
   // --- Transpose Sequencer on Key Change ---
   useEffect(() => {
@@ -234,6 +255,18 @@ const App: React.FC = () => {
     Tone.Transport.bpm.value = bpm;
   }, [bpm]);
 
+  const processedSequence = useMemo(() => {
+    if (voicingMode === 'auto' && isSequencerVoicingOn && sequence.length > 0) {
+      const chordNames = sequence.map(c => c.chordName);
+      const humanizedNames = humanizeProgression(chordNames);
+      return sequence.map((seqChord, index) => ({
+        ...seqChord,
+        chordName: humanizedNames[index],
+      }));
+    }
+    return sequence;
+  }, [sequence, voicingMode, isSequencerVoicingOn]);
+
   // Sync Tone.Part with sequence state
   useEffect(() => {
     if (partRef.current) {
@@ -247,7 +280,7 @@ const App: React.FC = () => {
       chordName: string | null;
     }[] = [];
 
-    sequence.forEach(seqChord => {
+    processedSequence.forEach(seqChord => {
       // START EVENT (ATTACK + UI)
       const totalSixteenthsStart = seqChord.start;
       const barStart = Math.floor(totalSixteenthsStart / 16);
@@ -288,6 +321,7 @@ const App: React.FC = () => {
         Tone.Draw.schedule(() => {
           setPlayingChordId(value.id);
           setSequencerActiveNotes(chordNotes);
+          setLastPlayedName(value.chordName);
         }, time);
       } else if (value.type === 'release' && chordNotes.length > 0) {
         // Simulates mouseup: release notes, stop UI highlight
@@ -313,7 +347,7 @@ const App: React.FC = () => {
     partRef.current.loop = true;
     partRef.current.loopEnd = '4m';
 
-  }, [sequence, octave]);
+  }, [processedSequence, octave]);
 
   const updatePlayhead = useCallback(() => {
     const totalBeats = 16; // 4 bars * 4 beats
@@ -392,6 +426,7 @@ const App: React.FC = () => {
     if (notes.length > 0) {
       startChordSound(notes);
       setActiveSequencerManualNotes(notes);
+      setLastPlayedName(chordName);
     }
   };
 
@@ -411,6 +446,7 @@ const App: React.FC = () => {
     if (notes.length > 0) {
       startChordSound(notes);
       setActiveEditorPreviewNotes(notes);
+      setLastPlayedName(chordName);
     }
   }, [octave, activeEditorPreviewNotes]);
 
@@ -593,6 +629,61 @@ const App: React.FC = () => {
     return processChordsForDisplay(transposed);
   }, [selectedChordSet, songKey, voicingMode, processChordsForDisplay]);
 
+  // Keyboard Pad Controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      const key = e.key.toLowerCase();
+      if (pressedKeysRef.current.has(key) || !KEY_TO_PAD_INDEX.hasOwnProperty(key)) return;
+
+      const padIndex = KEY_TO_PAD_INDEX[key];
+      if (padIndex < transposedChords.length) {
+        e.preventDefault();
+        pressedKeysRef.current.add(key);
+        const chordName = transposedChords[padIndex];
+        setLastPlayedName(chordName);
+
+        sampler.set({ attack: 0.005, release: 0.0 });
+        const notes = getChordNoteStrings(chordName, octave);
+
+        if (notes.length > 0) {
+          startChordSound(notes);
+          setActiveKeyboardNotes(prev => new Map(prev).set(key, notes));
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (!KEY_TO_PAD_INDEX.hasOwnProperty(key)) return;
+
+      pressedKeysRef.current.delete(key);
+      
+      setActiveKeyboardNotes(prev => {
+        const notesToStop = prev.get(key);
+        if (notesToStop) {
+          stopChordSound(notesToStop);
+          const newMap = new Map(prev);
+          newMap.delete(key);
+          return newMap;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+       // Ensure all sounds are stopped on cleanup
+      sampler.releaseAll();
+    };
+  }, [transposedChords, octave]);
+
   const displayedChordSets = useMemo(() => {
     if (!chordData[category]) return [];
     return chordData[category].map(set => {
@@ -615,6 +706,7 @@ const App: React.FC = () => {
     if (notes.length > 0) {
       startChordSound(notes);
       setActivePadChordNotes(notes);
+      setLastPlayedName(chordName);
     }
   };
 
@@ -622,6 +714,7 @@ const App: React.FC = () => {
     sampler.set({ release: 0.1 }); // Restore longer release for manual playing
     startNoteSound(note);
     setActivePianoNote(note);
+    setLastPlayedName(note);
   };
 
   const handlePadMouseEnter = (chordName: string) => {
@@ -643,6 +736,7 @@ const App: React.FC = () => {
       stopNoteSound(activePianoNote);
       startNoteSound(note);
       setActivePianoNote(note);
+      setLastPlayedName(note);
     }
     setHoveredItemName(note);
     setHoveredNotes([note]);
@@ -667,7 +761,8 @@ const App: React.FC = () => {
       ...activePadChordNotes,
       ...activeEditorPreviewNotes,
       ...sequencerActiveNotes,
-      ...activeSequencerManualNotes
+      ...activeSequencerManualNotes,
+      ...Array.from(activeKeyboardNotes.values()).flat()
     ];
     if (activePianoNote) {
         notes.push(activePianoNote);
@@ -678,8 +773,16 @@ const App: React.FC = () => {
       activeEditorPreviewNotes, 
       activePianoNote, 
       sequencerActiveNotes,
-      activeSequencerManualNotes
+      activeSequencerManualNotes,
+      activeKeyboardNotes,
     ]);
+    
+  useEffect(() => {
+    if (allActiveNotes.length === 0 && !isPlaying) {
+      setLastPlayedName(null);
+    }
+  }, [allActiveNotes, isPlaying]);
+
 
   const highlightedNotesForPiano = useMemo(() => {
     const notes = [...new Set([...allActiveNotes, ...hoveredNotes])];
@@ -696,7 +799,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col w-full px-8 overflow-hidden">
         <Header />
         <div className="mt-8">
-          <HoverDisplay name={hoveredItemName} />
+          <HoverDisplay name={lastPlayedName || hoveredItemName} />
           <Piano 
             highlightedNotes={highlightedNotesForPiano}
             pressedNotes={pressedPianoNotes}
@@ -719,7 +822,7 @@ const App: React.FC = () => {
         <div className="flex-grow flex flex-col min-h-0">
           <div className="bg-gray-800/50 rounded-t-lg border border-b-0 border-gray-700 overflow-hidden">
             <Sequencer 
-              sequence={sequence}
+              sequence={processedSequence}
               onAddChord={addChordToSequence}
               onUpdateChord={updateChordInSequence}
               onRemoveChord={removeChordFromSequence}
@@ -775,6 +878,9 @@ const App: React.FC = () => {
         setVoicingMode={setVoicingMode}
         onGenerate={handleGenerate}
         isGenerating={isGenerating}
+        keyLabels={KEY_LABELS}
+        isSequencerVoicingOn={isSequencerVoicingOn}
+        setIsSequencerVoicingOn={setIsSequencerVoicingOn}
       />
 
       {editingChord && (

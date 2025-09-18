@@ -29,6 +29,9 @@ interface SidePanelProps {
   setVoicingMode: (mode: 'off' | 'manual' | 'auto') => void;
   onGenerate: (prompt: string) => void;
   isGenerating: boolean;
+  keyLabels: string[];
+  isSequencerVoicingOn: boolean;
+  setIsSequencerVoicingOn: (isOn: boolean) => void;
 }
 
 const InversionControl: React.FC<{
@@ -100,6 +103,32 @@ const VoicingModeControl: React.FC<{
   );
 };
 
+const VoicingSequencerToggle: React.FC<{
+  enabled: boolean;
+  setEnabled: (enabled: boolean) => void;
+  disabled: boolean;
+}> = ({ enabled, setEnabled, disabled }) => (
+  <div className={`flex justify-between items-center mt-3 pt-3 border-t border-gray-700/50 transition-opacity duration-200 ${disabled ? 'opacity-50' : ''}`}>
+    <label htmlFor="sequencer-voicing-toggle" className={`text-sm font-medium text-gray-400 ${disabled ? 'cursor-not-allowed' : ''}`}>
+      Apply to Sequencer
+    </label>
+    <button
+      type="button"
+      id="sequencer-voicing-toggle"
+      onClick={() => setEnabled(!enabled)}
+      disabled={disabled}
+      className={`${enabled ? 'bg-indigo-600' : 'bg-gray-600'} relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed`}
+      role="switch"
+      aria-checked={enabled}
+    >
+      <span
+        aria-hidden="true"
+        className={`${enabled ? 'translate-x-5' : 'translate-x-0'} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+      />
+    </button>
+  </div>
+);
+
 
 export const SidePanel: React.FC<SidePanelProps> = ({
   chords,
@@ -125,6 +154,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   setVoicingMode,
   onGenerate,
   isGenerating,
+  keyLabels,
+  isSequencerVoicingOn,
+  setIsSequencerVoicingOn,
 }) => {
   
   const handlePadDragStart = (e: React.DragEvent, chordName: string) => {
@@ -167,6 +199,11 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                 disabled={voicingMode !== 'manual'}
               />
             </div>
+             <VoicingSequencerToggle 
+                enabled={isSequencerVoicingOn} 
+                setEnabled={setIsSequencerVoicingOn} 
+                disabled={voicingMode !== 'auto'}
+              />
           </div>
         </div>
 
@@ -182,6 +219,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onPadDragStart={handlePadDragStart}
             inversionLevel={inversionLevel}
             voicingMode={voicingMode}
+            keyLabels={keyLabels}
           />
         </div>
       </div>
